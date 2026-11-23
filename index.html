@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CBE Mobile Banking Demo (*889#)</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Roboto', Arial, sans-serif; margin: 0; padding: 0; }
+    body {
+      background: #f5f5f5;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .dialer {
+      width: 100%;
+      max-width: 400px;
+      background: #fff;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+    }
+    .display-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      letter-spacing: 2px;
+      color: #111;
+    }
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .key {
+      height: 65px;
+      border: none;
+      background: #f2f2f2;
+      border-radius: 35px;
+      font-size: 26px;
+      color: #111;
+      cursor: pointer;
+    }
+    .key:active { background: #dcdcdc; }
+    .actions {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .call-btn {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      border: none;
+      background: #00c853;
+      color: white;
+      font-size: 28px;
+      cursor: pointer;
+    }
+    .del-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #555;
+      cursor: pointer;
+      width: 50px;
+    }
+
+    /* USSD Dialog */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: 18px;
+      z-index: 100;
+    }
+    .ussd-box {
+      width: 100%;
+      max-width: 360px;
+      background: #fff;
+      border-radius: 24px;
+      padding: 24px 22px 14px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    }
+    .ussd-text {
+      font-size: 16px;
+      line-height: 1.45;
+      color: #111;
+      white-space: pre-line;
+      margin-bottom: 24px;
+    }
+    .ussd-input {
+      width: 100%;
+      border: none;
+      border-bottom: 1.5px solid #222;
+      font-size: 17px;
+      padding: 6px 2px;
+      outline: none;
+      margin-bottom: 16px;
+    }
+    .ussd-buttons {
+      display: flex;
+      justify-content: space-around;
+      padding-top: 8px;
+    }
+    .ussd-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      font-size: 16px;
+      font-weight: 600;
+      color: #111;
+      padding: 10px;
+      cursor: pointer;
+    }
+    .ussd-btn:first-child {
+      border-right: 1px solid #e5e5e5;
+    }
+  </style>
+</head>
+<body>
+
+<div class="dialer">
+  <div class="display-area" id="dialDisplay">*889#</div>
+  <div>
+    <div class="keypad">
+      <button class="key" onclick="press('1')">1</button>
+      <button class="key" onclick="press('2')">2</button>
+      <button class="key" onclick="press('3')">3</button>
+      <button class="key" onclick="press('4')">4</button>
+      <button class="key" onclick="press('5')">5</button>
+      <button class="key" onclick="press('6')">6</button>
+      <button class="key" onclick="press('7')">7</button>
+      <button class="key" onclick="press('8')">8</button>
+      <button class="key" onclick="press('9')">9</button>
+      <button class="key" onclick="press('*')">*</button>
+      <button class="key" onclick="press('0')">0</button>
+      <button class="key" onclick="press('#')">#</button>
+    </div>
+    <div class="actions">
+      <div style="width:50px"></div>
+      <button class="call-btn" onclick="dial()">📞</button>
+      <button class="del-btn" onclick="del()">⌫</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ussdOverlay">
+  <div class="ussd-box">
+    <div class="ussd-text" id="ussdText"></div>
+    <input type="text" class="ussd-input" id="ussdInput" autocomplete="off" />
+    <div class="ussd-buttons">
+      <button class="ussd-btn" onclick="closeUSSD()">Cancel</button>
+      <button class="ussd-btn" onclick="sendUSSD()">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let dialNumber = "*889#";
+  let step = "";
+  let senderName = "";
+  let amount = "";
+  let receiverName = "";
+
+  function updateDisplay() {
+    document.getElementById("dialDisplay").innerText = dialNumber;
+  }
+  function press(val) {
+    dialNumber += val;
+    updateDisplay();
+  }
+  function del() {
+    dialNumber = dialNumber.slice(0, -1);
+    updateDisplay();
+  }
+
+  function dial() {
+    if (dialNumber === "*889#") {
+      step = "PIN";
+      showUSSD("Welcome to CBE Mobile Banking.\nPlease enter your PIN to login:");
+    } else {
+      step = "ERROR";
+      showUSSD("Invalid MMI code. Please dial *889#");
+    }
+  }
+
+  function showUSSD(text) {
+    document.getElementById("ussdText").innerText = text;
+    const input = document.getElementById("ussdInput");
+    input.value = "";
+    document.getElementById("ussdOverlay").style.display = "flex";
+    setTimeout(() => input.focus(), 100);
+  }
+
+  function closeUSSD() {
+    document.getElementById("ussdOverlay").style.display = "none";
+    step = "";
+  }
+
+  function getTodayDate() {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  function generateFT() {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let res = "FT26326";
+    for (let i = 0; i < 5; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return res;
+  }
+
+  function sendUSSD() {
+    const val = document.getElementById("ussdInput").value.trim();
+
+    if (step === "PIN") {
+      if (!val) return;
+      step = "MENU";
+      showUSSD(
+        "1:My Account\n2:Transfer to CBE Account\n3:Beneficiary\n4:Own Account Transfer\n5:CBE Fast Loan\n6:ATM Cash Out\n7:Airtime\n8:Other Transfers\n9:CBEBirr\n10:Next"
+      );
+    } else if (step === "MENU") {
+      if (val === "2") {
+        step = "SENDER";
+        showUSSD("Enter Sender Name:");
+      } else {
+        showUSSD("Please select 2:Transfer to CBE Account");
+      }
+    } else if (step === "SENDER") {
+      if (!val) return;
+      senderName = val;
+      step = "AMOUNT";
+      showUSSD("Enter Amount:");
+    } else if (step === "AMOUNT") {
+      if (!val || isNaN(val)) return;
+      amount = parseFloat(val).toFixed(2);
+      step = "RECEIVER";
+      showUSSD("Enter Receiver Name:");
+    } else if (step === "RECEIVER") {
+      if (!val) return;
+      receiverName = val;
+      const last4 = Math.floor(1000 + Math.random() * 9000);
+      const dateStr = getTodayDate();
+      const ftCode = generateFT();
+
+      step = "DONE";
+      showUSSD(
+        `Completed ETB${amount} transfer From ${senderName} to ${receiverName}-${last4}. To transfer on ${dateStr} ${ftCode} Service Charge\n#:Next`
+      );
+    } else {
+      closeUSSD();
+    }
+  }
+</script>
+</body>
+</html>
